@@ -259,6 +259,14 @@ class Site:
 <script src="{pre}{asset('site.js')}" defer></script>
 </head>"""
 
+    def family(self, path):
+        """The three sites as buttons above the menu, this one marked, so each is one click from the others."""
+        home = "../" if path else "./"
+        sites = [(self.brand, self.brand, home, ' aria-current="true"')] + [
+            (i["name"], i["short"], i["url"] + "/", "") for i in self.cfg["industries"] if i["status"] == "live"]
+        return ('<nav class="family" aria-label="Pink City Papers sites">'
+                + "".join(f'<a href="{u}"{c}><span class="fam-l">{E(l)}</span><span class="fam-s">{E(s)}</span></a>' for l, s, u, c in sites) + "</nav>")
+
     def bar(self, path):
         pre = "../" if path else ""
         home = pre or "./"
@@ -323,7 +331,7 @@ class Site:
         return f"""{self.head(path, title, desc, ld, base_tag=not_found)}
 <body>
 {self.curtain() if main_cls == "home" else ""}{self.loader(title.split(" · ")[0])}<a class="skip" href="#main">Skip to the content</a>
-{self.bar(path)}
+{self.family(path)}{self.bar(path)}
 <main id="main" class="{main_cls}">
 {body}
 </main>
