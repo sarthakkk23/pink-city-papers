@@ -240,17 +240,17 @@ class Site:
 <meta property="og:title" content="{E(title)}">
 <meta property="og:description" content="{E(desc)}">
 <meta property="og:url" content="{url}">
-<meta property="og:image" content="{self.base}/og.jpg">
+<meta property="og:image" content="{self.base}/{asset('og.jpg')}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="{E(self.brand)}: Jaipur's industries, measured. Jaipur's rooftops from above.">
+<meta property="og:image:alt" content="{E(self.brand)}: Jaipur was built to trade. A bazaar street and the city's rooftops either side.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{E(title)}">
 <meta name="twitter:description" content="{E(desc)}">
-<meta name="twitter:image" content="{self.base}/og.jpg">
-<link rel="icon" href="{pre}favicon.svg" type="image/svg+xml">
-<link rel="icon" href="{pre}favicon.ico" sizes="32x32">
-<link rel="apple-touch-icon" href="{pre}apple-touch-icon.png">
+<meta name="twitter:image" content="{self.base}/{asset('og.jpg')}">
+<link rel="icon" href="{pre}{asset('favicon.svg')}" type="image/svg+xml">
+<link rel="icon" href="{pre}{asset('favicon.ico')}" sizes="32x32">
+<link rel="apple-touch-icon" href="{pre}{asset('apple-touch-icon.png')}">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#f5f5f2">
 {ld_tag}<script>(function(d){{d.classList.add("js");try{{if(sessionStorage.getItem("pcp-seen"))d.classList.add("seen");else sessionStorage.setItem("pcp-seen","1")}}catch(e){{d.classList.add("seen")}}setTimeout(function(){{if(!window.__board)d.classList.remove("js")}},3000)}})(document.documentElement)</script>

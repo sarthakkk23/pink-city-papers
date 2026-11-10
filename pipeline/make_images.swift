@@ -1,4 +1,4 @@
-// Draws the share card (og.jpg) and the app icons from the photos and the Literata font in web/.
+// Draws the share card (og.jpg) and the icons from the photos and the Literata font in web/.
 // Run on a Mac when the look changes: swift pipeline/make_images.swift
 // The card carries no brand name, so renaming the brand in site.config.yaml never needs a new card.
 import AppKit
@@ -9,15 +9,15 @@ let web = root.appendingPathComponent("web")
 
 func hex(_ s: String) -> CGColor {
     let v = Int(s.dropFirst(), radix: 16)!
-    return CGColor(red: CGFloat((v >> 16) & 255) / 255, green: CGFloat((v >> 8) & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+    return CGColor(srgbRed: CGFloat((v >> 16) & 255) / 255, green: CGFloat((v >> 8) & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
 }
-let ink = hex("#161616"), soft = hex("#5c5b58"), pink = hex("#e3ad9f"), red = hex("#b0533d"), blush = hex("#f5e4dd")
+let ink = hex("#161616"), soft = hex("#55534f"), red = hex("#b0533d"), paper = hex("#f5f5f2")
 
-func font(_ size: CGFloat) -> CTFont {
-    let url = web.appendingPathComponent("fonts/literata.woff2") as CFURL
+func font(_ size: CGFloat, italic: Bool = false, weight: Int = 500) -> CTFont {
+    let url = web.appendingPathComponent(italic ? "fonts/literata-italic.woff2" : "fonts/literata.woff2") as CFURL
     if let ds = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor], let d = ds.first {
-        let wght = 0x77676874 as NSNumber   // the variable font's weight axis, set to the site's 500
-        let heavier = CTFontDescriptorCreateCopyWithAttributes(d, [kCTFontVariationAttribute: [wght: 500]] as CFDictionary)
+        let wght = 0x77676874 as NSNumber   // the variable font's weight axis
+        let heavier = CTFontDescriptorCreateCopyWithAttributes(d, [kCTFontVariationAttribute: [wght: weight]] as CFDictionary)
         return CTFontCreateWithFontDescriptor(heavier, size, nil)
     }
     return CTFontCreateWithName("Georgia" as CFString, size, nil)
@@ -28,65 +28,100 @@ func canvas(_ w: Int, _ h: Int) -> CGContext {
               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
 }
 
-// text block, top-left anchored (CoreGraphics' origin is bottom-left)
-func text(_ c: CGContext, _ s: String, _ size: CGFloat, _ color: CGColor, x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat, lineHeight: CGFloat) {
-    var lh = lineHeight
-    let style = withUnsafeBytes(of: &lh) { p -> CTParagraphStyle in
-        let n = MemoryLayout<CGFloat>.size
-        let para = [CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: n, value: p.baseAddress!),
-                    CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: n, value: p.baseAddress!)]
-        return para.withUnsafeBufferPointer { CTParagraphStyleCreate($0.baseAddress!, 2) }
+// one line of text centred on cx, its baseline `baseline` px from the top; each run is (text, font, colour, tracking in em)
+func line(_ c: CGContext, _ runs: [(String, CTFont, CGColor, CGFloat)], cx: CGFloat, baseline: CGFloat) {
+    let s = NSMutableAttributedString()
+    for (t, f, col, track) in runs {
+        s.append(NSAttributedString(string: t, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): f,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): col,
+            NSAttributedString.Key(kCTKernAttributeName as String): CTFontGetSize(f) * track]))
     }
-    let attr = NSAttributedString(string: s, attributes: [
-        NSAttributedString.Key(kCTFontAttributeName as String): font(size),
-        NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
-        NSAttributedString.Key(kCTParagraphStyleAttributeName as String): style,
-        NSAttributedString.Key(kCTKernAttributeName as String): -size * 0.02])
-    let fs = CTFramesetterCreateWithAttributedString(attr)
-    let H = CGFloat(c.height)
-    let path = CGPath(rect: CGRect(x: x, y: H - top - height, width: width, height: height), transform: nil)
-    CTFrameDraw(CTFramesetterCreateFrame(fs, CFRange(location: 0, length: 0), path, nil), c)
+    let l = CTLineCreateWithAttributedString(s)
+    let w = CTLineGetTypographicBounds(l, nil, nil, nil)
+    c.textPosition = CGPoint(x: cx - CGFloat(w) / 2, y: CGFloat(c.height) - baseline)
+    CTLineDraw(l, c)
 }
 
-// the mark: three bars on pink, the tallest in facade red ("measured")
-func mark(_ c: CGContext, x: CGFloat, y: CGFloat, size s: CGFloat) {
-    let k = s / 64
-    c.setFillColor(pink)
-    c.addPath(CGPath(roundedRect: CGRect(x: x, y: y, width: s, height: s), cornerWidth: 14 * k, cornerHeight: 14 * k, transform: nil)); c.fillPath()
-    for (bx, top, color) in [(14.0, 30.0, ink), (27.5, 20.0, ink), (41.0, 13.0, red)] {
-        c.setFillColor(color)
-        let r = CGRect(x: x + CGFloat(bx) * k, y: y + (64 - 50) * k, width: 9 * k, height: CGFloat(50 - top) * k)
-        c.addPath(CGPath(roundedRect: r, cornerWidth: 1.5 * k, cornerHeight: 1.5 * k, transform: nil)); c.fillPath()
-    }
+// a photo cropped to fill rect, `focus` choosing which part of the photo stays (0 = left/bottom, 1 = right/top)
+func photo(_ c: CGContext, _ name: String, _ rect: CGRect, focus: CGPoint) {
+    guard let src = NSImage(contentsOf: web.appendingPathComponent("img/\(name)")),
+          let img = src.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+    let iw = CGFloat(img.width), ih = CGFloat(img.height)
+    let scale = max(rect.width / iw, rect.height / ih)
+    let cw = rect.width / scale, ch = rect.height / scale
+    let crop = CGRect(x: (iw - cw) * focus.x, y: (ih - ch) * (1 - focus.y), width: cw, height: ch)   // image rows run top-down
+    c.draw(img.cropping(to: crop)!, in: rect)
 }
 
-func save(_ c: CGContext, _ name: String, jpeg: Bool = false) {
-    let rep = NSBitmapImageRep(cgImage: c.makeImage()!)
-    let data = jpeg ? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.86])! : rep.representation(using: .png, properties: [:])!
+func save(_ data: Data, _ name: String) {
     try! data.write(to: web.appendingPathComponent(name))
     print("wrote web/\(name)")
 }
+func png(_ c: CGContext) -> Data { NSBitmapImageRep(cgImage: c.makeImage()!).representation(using: .png, properties: [:])! }
 
-// ---------- og.jpg: Jaipur from above on the left, the promise on blush ----------
-let og = canvas(1200, 630)
-og.setFillColor(blush); og.fill(CGRect(x: 0, y: 0, width: 1200, height: 630))
-if let src = NSImage(contentsOf: web.appendingPathComponent("img/city-above-1600.jpg")), let img = src.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-    let w = 560.0, h = 630.0, iw = Double(img.width), ih = Double(img.height)
-    let scale = max(w / iw, h / ih) * 1.15         // a little closer to the rooftops
-    let cw = w / scale, ch = h / scale
-    let crop = CGRect(x: (iw - cw) / 2, y: (ih - ch) * 0.75, width: cw, height: ch)   // rooftops, not sky
-    og.draw(img.cropping(to: crop)!, in: CGRect(x: 0, y: 0, width: w, height: h))
-}
-mark(og, x: 616, y: 630 - 64 - 56, size: 56)
-text(og, "Jaipur\u{2019}s industries, measured.", 64, ink, x: 616, top: 150, width: 560, height: 220, lineHeight: 68)
-text(og, "Free data for the people who run them. One industry at a time.", 30, ink, x: 616, top: 392, width: 540, height: 100, lineHeight: 40)
-text(og, "Cafés live \u{00B7} Jewellery next", 22, soft, x: 616, top: 548, width: 540, height: 40, lineHeight: 30)
-save(og, "og.jpg", jpeg: true)
+// ---------- og.jpg: the site's hero line on paper, a photo at each edge ----------
+// Everything that matters sits in the middle 630px, so a square thumbnail (LinkedIn, WhatsApp) still reads.
+let W: CGFloat = 1200, H: CGFloat = 630, side: CGFloat = 250
+let og = canvas(Int(W), Int(H))
+og.setFillColor(paper); og.fill(CGRect(x: 0, y: 0, width: W, height: H))
+photo(og, "pink-bazaar-1600.jpg", CGRect(x: 0, y: 0, width: side, height: H), focus: CGPoint(x: 0.62, y: 0.5))
+photo(og, "city-above-1600.jpg", CGRect(x: W - side, y: 0, width: side, height: H), focus: CGPoint(x: 0.5, y: 0.25))
+let mid = W / 2
+line(og, [("INDEPENDENT RESEARCH ON JAIPUR\u{2019}S BUSINESSES", font(17, weight: 600), red, 0.12)], cx: mid, baseline: 168)
+line(og, [("Jaipur was", font(88), ink, -0.025)], cx: mid, baseline: 282)
+line(og, [("built to ", font(88), ink, -0.025), ("trade.", font(88, italic: true), red, -0.02)], cx: mid, baseline: 372)
+line(og, [("Free, checked data on what\u{2019}s really", font(27, weight: 400), ink, 0)], cx: mid, baseline: 448)
+line(og, [("happening in the city\u{2019}s trades.", font(27, weight: 400), ink, 0)], cx: mid, baseline: 484)
+line(og, [("Caf\u{00E9}s \u{00B7} Jewellery \u{00B7} More to come", font(20, weight: 400), soft, 0)], cx: mid, baseline: 548)
+let rep = NSBitmapImageRep(cgImage: og.makeImage()!)
+save(rep.representation(using: .jpeg, properties: [.compressionFactor: 0.86])!, "og.jpg")
 
-// ---------- icons ----------
-for (size, name) in [(180, "apple-touch-icon.png"), (32, "favicon-32.png")] {
-    let c = canvas(size, size)
-    if size == 180 { c.setFillColor(pink); c.fill(CGRect(x: 0, y: 0, width: 180, height: 180)) }   // iOS rounds the corners itself
-    mark(c, x: 0, y: 0, size: CGFloat(size))
-    save(c, name)
+// ---------- icons: a paper-coloured Literata P on the site's red ----------
+let glyphFont = font(64, weight: 600)
+var ch: UniChar = 0x50, glyph: CGGlyph = 0
+CTFontGetGlyphsForCharacters(glyphFont, &ch, &glyph, 1)
+let P = CTFontCreatePathForGlyph(glyphFont, glyph, nil)!
+let pb = P.boundingBoxOfPath
+
+// the P scaled to `share` of the icon's height and centred optically (a touch right, since the bowl carries the weight)
+func placed(_ size: CGFloat, share: CGFloat = 0.6) -> CGAffineTransform {
+    let k = size * share / pb.height
+    let dx = (size - pb.width * k) / 2 - pb.minX * k + size * 0.015, dy = (size - pb.height * k) / 2 - pb.minY * k
+    return CGAffineTransform(translationX: dx, y: dy).scaledBy(x: k, y: k)
 }
+
+func icon(_ size: Int, rounded: Bool) -> CGContext {
+    let s = CGFloat(size), c = canvas(size, size)
+    c.setFillColor(red)
+    if rounded { c.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: s, height: s), cornerWidth: s * 0.22, cornerHeight: s * 0.22, transform: nil)); c.fillPath() }
+    else { c.fill(CGRect(x: 0, y: 0, width: s, height: s)) }   // iOS rounds the corners itself
+    var t = placed(s)
+    c.setFillColor(paper); c.addPath(P.copy(using: &t)!); c.fillPath()
+    return c
+}
+save(png(icon(180, rounded: false)), "apple-touch-icon.png")
+
+// favicon.ico: one 32px PNG inside the six-byte ICO header and its sixteen-byte directory entry
+let small = png(icon(32, rounded: true))
+var ico = Data([0, 0, 1, 0, 1, 0, 32, 32, 0, 0, 1, 0, 32, 0])
+withUnsafeBytes(of: UInt32(small.count).littleEndian) { ico.append(contentsOf: $0) }
+withUnsafeBytes(of: UInt32(22).littleEndian) { ico.append(contentsOf: $0) }
+save(ico + small, "favicon.ico")
+
+// favicon.svg: the same P as a path, flipped into SVG's top-down coordinates
+var flip = CGAffineTransform(translationX: 0, y: 64).scaledBy(x: 1, y: -1).concatenating(.identity)
+flip = placed(64).concatenating(flip)
+var d = ""
+P.copy(using: &flip)!.applyWithBlock { el in
+    let p = el.pointee.points, f = { (q: CGPoint) in String(format: "%.2f %.2f", q.x, q.y) }
+    switch el.pointee.type {
+    case .moveToPoint: d += "M\(f(p[0]))"
+    case .addLineToPoint: d += "L\(f(p[0]))"
+    case .addQuadCurveToPoint: d += "Q\(f(p[0])) \(f(p[1]))"
+    case .addCurveToPoint: d += "C\(f(p[0])) \(f(p[1])) \(f(p[2]))"
+    case .closeSubpath: d += "Z"
+    @unknown default: break
+    }
+}
+save(Data("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"#b0533d\"/><path d=\"\(d)\" fill=\"#f5f5f2\"/></svg>\n".utf8), "favicon.svg")
