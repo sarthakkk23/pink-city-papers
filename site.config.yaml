@@ -56,13 +56,13 @@ industries:
 #   action:  the form's .../formResponse address
 #   fields:  the form's entry IDs, one per question (see README: "Setting up the sign-up form")
 subscribe:
-  provider: none
-  action: ""
+  provider: google_form
+  action: "https://docs.google.com/forms/d/e/1FAIpQLSeIVYHj6gnJ8AkWfZh0y8m8bw3evMBVkdmCe5ZXjjhpenunQA/formResponse"
   fields:
-    name: ""          # Short answer: "Your name"
-    contact: ""       # Short answer: "WhatsApp number"
-    industries: ""    # Checkboxes: "Cafés" / "Jewellery" / "The next industry" (must match exactly)
-    question: ""      # Paragraph: "What do you wish you knew about your industry?" (optional)
+    name: entry.1279592121        # Short answer: "Your name"
+    contact: entry.955009894      # Short answer: "WhatsApp number"
+    industries: entry.1140448469  # Checkboxes: "Cafés" / "Jewellery" / "The next industry" (must match exactly)
+    question: entry.581363360     # Paragraph: "What do you wish you knew about your industry?" (optional)
 
 # The café findings the site shows, by their id in the café index's published data.
 #   picker: the three shown when someone picks "Cafés" in "Find your trade" (home page)
