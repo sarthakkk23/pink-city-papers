@@ -85,6 +85,8 @@ b { font-weight: 600; }
 .family a[aria-current] { background: var(--ink); color: var(--paper); }
 .family .fam-s { display: none; }
 @media (max-width: 560px) { .family .fam-l { display: none; } .family .fam-s { display: inline; } }
+/* four sites: a little tighter on small phones, so the last button is not cut off */
+@media (max-width: 420px) { .family { gap: 4px; padding-inline: 12px; } .family a { padding: 0 8px; font-size: .75rem; } }
 .bar-btn { min-height: 44px; white-space: nowrap; flex: none; }
 .menu { display: none; margin-left: auto; }
 .menu summary { list-style: none; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; background: var(--stone); font-weight: 600; font-size: .9375rem; }
