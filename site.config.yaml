@@ -40,6 +40,11 @@ industries:
     now_url: "https://sarthakkk23.github.io/jewellery-paper"
     data: "data/insights.json"
     show: ["2.2", "3.2", "5.1"]   # the findings on the Jewellery page, one at a time, by id
+  - key: realestate             # linked in the button row, footer and site list; no page or figures here yet
+    name: "The Real Estate Paper"
+    short: "Real estate"
+    status: live
+    now_url: "https://sarthakkk23.github.io/real-estate-paper"
   - key: textiles
     short: "Textiles and block printing"
     status: candidate

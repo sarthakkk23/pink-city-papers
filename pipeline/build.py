@@ -260,7 +260,7 @@ class Site:
 </head>"""
 
     def family(self, path):
-        """The three sites as buttons above the menu, this one marked, so each is one click from the others."""
+        """The sites as buttons above the menu, this one marked, so each is one click from the others."""
         home = "../" if path else "./"
         sites = [(self.brand, self.brand, home, ' aria-current="true"')] + [
             (i["name"], i["short"], i["url"] + "/", "") for i in self.cfg["industries"] if i["status"] == "live"]
